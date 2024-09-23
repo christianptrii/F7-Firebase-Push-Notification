@@ -1,0 +1,18 @@
+{
+  "cwd": "C:\\Users\\Wahyu\\Documents\\latihan-f7",
+  "type": [
+    "web"
+  ],
+  "name": "f7-auth",
+  "framework": "vue",
+  "template": "single-view",
+  "cssPreProcessor": false,
+  "bundler": "vite",
+  "theming": {
+    "customColor": false,
+    "color": "#007aff",
+    "darkMode": false,
+    "iconFonts": true
+  },
+  "customBuild": false
+}
