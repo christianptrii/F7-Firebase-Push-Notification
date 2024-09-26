@@ -19,6 +19,22 @@
       <f7-button v-if="pushNotificationStatus === 'Not requested'" @click="requestPushNotificationPermission">Request Push Notifications</f7-button>
     </f7-block>
 
+    <f7-block v-if="user" strong>
+      <f7-block-header>Location Permission Status: {{ locationPermissionStatus }}</f7-block-header>
+      <f7-button v-if="locationPermissionStatus === 'Not requested'" @click="requestLocationPermission">Request Location Permission</f7-button>
+    </f7-block>
+
+    <f7-block v-if="user" strong>
+      <f7-block-header>Camera Permission Status: {{ cameraPermissionStatus }}</f7-block-header>
+      <f7-button v-if="cameraPermissionStatus === 'Not requested'" @click="requestCameraPermission">Request Camera Permission</f7-button>
+      <f7-button v-if="cameraPermissionStatus === 'Granted' && !isCameraActive" @click="startCamera">Start Camera</f7-button>
+      <f7-button v-if="isCameraActive" @click="stopCamera">Stop Camera</f7-button>
+    </f7-block>
+
+    <f7-block v-if="isCameraActive" strong>
+      <video ref="videoElement" autoplay playsinline></video>
+    </f7-block>
+
     <f7-block v-if="!user" strong>
       <form @submit.prevent="onLoginWithEmailClicked">
         <f7-list class="login-list" no-hairlines-md>
@@ -83,6 +99,10 @@ export default {
       password_signup: '',
       showSignupForm: false,
       pushNotificationStatus: 'Not requested',
+      locationPermissionStatus: 'Not requested',
+      cameraPermissionStatus: 'Not requested',
+      isCameraActive: false,
+      stream: null,
     };
   },
   methods: {
@@ -94,7 +114,6 @@ export default {
           console.log('Login successful:', user);
           this.$f7.dialog.alert('Login successful!', 'Success');
           this.user = user;
-          this.requestPushNotificationPermission();
         })
         .catch((error) => {
           console.error('Login failed:', error);
@@ -117,11 +136,14 @@ export default {
     },
 
     onLogoutClicked() {
+      this.stopCamera();
       const auth = getAuth();
       auth.signOut()
         .then(() => {
           this.user = null;
           this.pushNotificationStatus = 'Not requested';
+          this.locationPermissionStatus = 'Not requested';
+          this.cameraPermissionStatus = 'Not requested';
           this.$f7.dialog.alert('You have successfully logged out.', 'Success');
         })
         .catch((error) => {
@@ -136,7 +158,6 @@ export default {
           if (permission === 'granted') {
             this.pushNotificationStatus = 'Granted';
             this.$f7.dialog.alert('Push notification permission granted!', 'Success');
-            // Here you would typically send the device token to your server
             console.log('Would send device token to server here');
           } else {
             this.pushNotificationStatus = 'Denied';
@@ -146,6 +167,68 @@ export default {
       } else {
         this.pushNotificationStatus = 'Not supported';
         this.$f7.dialog.alert('Push notifications are not supported in this browser.', 'Notice');
+      }
+    },
+
+    requestLocationPermission() {
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            this.locationPermissionStatus = 'Granted';
+            this.$f7.dialog.alert('Location permission granted!', 'Success');
+            console.log('Latitude:', position.coords.latitude, 'Longitude:', position.coords.longitude);
+          },
+          (error) => {
+            this.locationPermissionStatus = 'Denied';
+            this.$f7.dialog.alert('Location permission denied: ' + error.message, 'Error');
+          }
+        );
+      } else {
+        this.locationPermissionStatus = 'Not supported';
+        this.$f7.dialog.alert('Geolocation is not supported in this browser.', 'Notice');
+      }
+    },
+
+    requestCameraPermission() {
+      if ('mediaDevices' in navigator && 'getUserMedia' in navigator.mediaDevices) {
+        navigator.mediaDevices.getUserMedia({ video: true })
+          .then((stream) => {
+            this.cameraPermissionStatus = 'Granted';
+            this.$f7.dialog.alert('Camera permission granted!', 'Success');
+            this.stream = stream;
+            stream.getTracks().forEach(track => track.stop());
+          })
+          .catch((error) => {
+            this.cameraPermissionStatus = 'Denied';
+            this.$f7.dialog.alert('Camera permission denied: ' + error.message, 'Error');
+          });
+      } else {
+        this.cameraPermissionStatus = 'Not supported';
+        this.$f7.dialog.alert('Camera access is not supported in this browser.', 'Notice');
+      }
+    },
+
+    startCamera() {
+      if (this.cameraPermissionStatus === 'Granted') {
+        navigator.mediaDevices.getUserMedia({ video: true })
+          .then((stream) => {
+            this.stream = stream;
+            this.$refs.videoElement.srcObject = stream;
+            this.isCameraActive = true;
+          })
+          .catch((error) => {
+            console.error('Error accessing the camera:', error);
+            this.$f7.dialog.alert('Error starting the camera: ' + error.message, 'Error');
+          });
+      }
+    },
+
+    stopCamera() {
+      if (this.stream) {
+        this.stream.getTracks().forEach(track => track.stop());
+        this.stream = null;
+        this.$refs.videoElement.srcObject = null;
+        this.isCameraActive = false;
       }
     },
   },
@@ -163,7 +246,6 @@ export default {
       if (user) {
         console.log('User is logged in:', user);
         this.user = user;
-        // Check if we need to request push notification permission
         if (this.pushNotificationStatus === 'Not requested') {
           this.requestPushNotificationPermission();
         }
@@ -171,8 +253,22 @@ export default {
         console.log('No user is logged in.');
         this.user = null;
         this.pushNotificationStatus = 'Not requested';
+        this.locationPermissionStatus = 'Not requested';
+        this.cameraPermissionStatus = 'Not requested';
       }
     });
   },
+
+  beforeDestroy() {
+    this.stopCamera();
+  },
 };
 </script>
+
+<style scoped>
+video {
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+}
+</style>
